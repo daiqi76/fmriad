@@ -6,7 +6,32 @@ import pytorch_lightning as pl
 import torchvision.transforms as T
 from PIL import Image
 from sklearn.model_selection import StratifiedKFold
+from dataset_pretrain import IXIOASISDataset
 
+def build_pretraining_dataloader(cfg, args):
+    """Builds the dataloader for MAE pretraining.
+
+    Args:
+        cfg: Configurations from config.yml.
+        args: Arguments from the command line.
+    Returns:
+        dataloader: PyTorch DataLoader for MAE pretraining.
+    """
+    dataloader = IXIOASISDataModule(
+        plane=args.plane,
+        batch_size=cfg['SOLVER']['batch_size'],
+        num_workers=cfg['SOLVER']['num_workers']
+    )
+    print('Pretraining dataloader built.')
+    train_dataloader = dataloader.train_dataloader()
+    return train_dataloader
+
+def transform() -> T.Compose:
+    """Normalisation-only pipeline"""
+    return T.Compose([
+        T.ToTensor(),
+        T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ])
 
 class IXIOASISDataModule(pl.LightningDataModule):
     """PyTorch Lightning DataModule wrapping IXIOASIS Dataset.
@@ -24,56 +49,22 @@ class IXIOASISDataModule(pl.LightningDataModule):
         Args:
             plane:       Input plane {'sagittal', 'coronal', 'axial', 'all'}.
             batch_size:  Samples per mini-batch.
-            n_splits:    Number of CV folds (default 5).
             num_workers: DataLoader worker processes (0 = main process only).
         """
         super().__init__()
         self.plane       = plane
         self.batch_size  = batch_size
-        self.n_splits    = n_splits
         self.num_workers = num_workers
 
-        self._train_records: Optional[List[dict]] = None
-        self._val_records:   Optional[List[dict]] = None
 
     # ------------------------------------------------------------------
-    def setup(self, stage: Optional[str] = None):
-        """Loads JSON metadata and computes fold splits."""
-        # Train / val pool
-        with open(IMAGE_ROOT / "ADNI_train_val.json") as f:
-            all_records = json.load(f)
+    def train_dataloader(self):
+        ds = IXIOASISDataset("train", self.plane, transform())
+        return DataLoader(ds, batch_size=self.batch_size, shuffle=True,
+                        num_workers=self.num_workers, pin_memory=True)
 
-        # Held-out test set
-        with open(IMAGE_ROOT / "ADNI_test.json") as f:
-            self._test_records = json.load(f)
-
-        # Stratified 5-fold split (seed fixed for reproducibility)
-        labels = [1 if r["group"] == "AD" else 0 for r in all_records]
-        skf    = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=42)
-        splits = list(skf.split(all_records, labels))
-
-        train_idx, val_idx = splits[self.fold]
-        self._train_records = [all_records[i] for i in train_idx]
-        self._val_records   = [all_records[i] for i in val_idx]
-
-    # ------------------------------------------------------------------
-    def train_dataloader(self) -> DataLoader:
-        ds = IXIOASISDataset(self._train_records, self.plane, get_train_transform())
-        return DataLoader(
-            ds,
-            batch_size=self.batch_size,
-            shuffle=True,
-            num_workers=self.num_workers,
-            pin_memory=True,
-        )
-
-    def val_dataloader(self) -> DataLoader:
-        ds = IXIOASISDataset(self._val_records, self.plane, get_val_transform())
-        return DataLoader(
-            ds,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-            pin_memory=True,
-        )
+    def val_dataloader(self):
+        ds = IXIOASISDataset("val", self.plane, transform())
+        return DataLoader(ds, batch_size=self.batch_size, shuffle=False,
+                        num_workers=self.num_workers, pin_memory=True)
 

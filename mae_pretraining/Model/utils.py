@@ -9,6 +9,31 @@ from sklearn.preprocessing import MinMaxScaler
 
 import timm
 
+def save_model(args, cfg, model, filename, epoch, steps):
+    flist = glob.glob(filename+ '*')
+    for f in flist:
+        os.remove(f)
+    filename = filename + '_%03i_%06d.pth.tar'%(epoch, steps)
+    if len([x for x in args.devices.split(",")]) > 1:
+        state = {"net": model.module.state_dict()}
+    else:
+        state = {"net": model.state_dict()}
+    torch.save(state, filename)
+
+def adjust_learning_rate_halfcosine(optimizer, epoch, cfg):
+    """Decay the learning rate with half-cycle cosine after warmup"""
+    if epoch < cfg['SOLVER']['warmup_epochs']:
+        lr = cfg['SOLVER']['lr'] * epoch / cfg['SOLVER']['warmup_epochs'] 
+    else:
+        lr = cfg['SOLVER']['min_lr'] + (cfg['SOLVER']['lr'] - cfg['SOLVER']['min_lr']) * 0.5 * \
+            (1. + math.cos(math.pi * (epoch - cfg['SOLVER']['warmup_epochs']) / (cfg['TRAINING']['EPOCHS'] - cfg['SOLVER']['warmup_epochs'])))
+    for param_group in optimizer.param_groups:
+        if "lr_scale" in param_group:
+            param_group["lr"] = lr * param_group["lr_scale"]
+        else:
+            param_group["lr"] = lr
+    return
+
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False, dist_token=False):
     """
     grid_size: int of the grid height and width

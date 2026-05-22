@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ViT import PatchEmbed2D, Block
-from utils.utils import get_3d_sincos_pos_embed
+from utils import get_2d_sincos_pos_embed
 
 
 
@@ -215,7 +215,7 @@ class MaskedAutoencoderViT(nn.Module):
     
     def forward_loss(self, imgs, pred, mask):
         """
-        imgs: [N, 2, H, W]
+        imgs: [N, 1, H, W]
         pred: [N, L, p*p*2]
         mask: [N, L], 0 is keep, 1 is remove, 
         """

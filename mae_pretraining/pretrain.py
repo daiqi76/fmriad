@@ -1,7 +1,7 @@
 
 from pretrain_mae import pretrain_mae
-from masked_autoencoder import build_mae,make_optimizer
-from dataloader import build_pretraining_dataloader
+from Model.build_model import build_mae,make_optimizer
+from dataloader_pretrain import build_pretraining_dataloader
 from datetime import datetime
 import argparse
 import os
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility.")
     parser.add_argument("--mask_ratio", type=float, default=0.75, help="Ratio of the input to mask during pretraining.")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to the configuration file.")
-    
+    parser.add_argument('--iter_start', default=0, type=int, help='Starting iteration count of training')
     args = parser.parse_args()
     
     config_file = open(args.config_file, 'rb')
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     timestamp_current = timestamp_current.strftime("%Y%m%d_%H%M")
 
     # Set up the Tensorboard log
-    # writer = setup_tensorboard(FILENAME_POSTFIX, timestamp_current)
+    # writer = setup_tensorboard(SAVE_DIR, timestamp_current)
     # Set up logger file
     logger = setup_logger(SAVE_DIR, timestamp_current)
     logger.setLevel(logging.DEBUG)

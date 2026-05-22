@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.cuda import amp
 
-from utils.utils import adjust_learning_rate_halfcosine, save_model
+from Model.utils import adjust_learning_rate_halfcosine, save_model
 
 def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scaler, logger = logger, 
                  SAVE_DIR = SAVE_DIR,pretraining_dataloader = pretraining_dataloader,
@@ -89,7 +89,7 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
 
             # other way to calculate accuracy
             average_loss += float(loss.item())
-            # writer.add_scalar(FILENAME_POSTFIX + '_loss', float(loss.item()), steps)
+            # writer.add_scalar(SAVE_DIR + '_loss', float(loss.item()), steps)
 
             steps += 1
             wandb.log({"pretrain train loss": loss.item()})
@@ -102,8 +102,8 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
                     epoch+1, epochs, steps, np.mean(batch_time), np.mean(net_time), lr, average_loss/iter_per_epoch, iter_per_epoch*batch_size))
         average_loss = 0
         # scheduler.step()
-        save_model(args, cfg, model, cfg['TRAINING']['CHECKPOINT'] + FILENAME_POSTFIX, epoch, steps)
-        print('Saved: ' + cfg['TRAINING']['CHECKPOINT'] + FILENAME_POSTFIX + '_' + str(epoch) + '_' + str(steps))
+        save_model(args, cfg, model, cfg['TRAINING']['CHECKPOINT'] + SAVE_DIR, epoch, steps)
+        print('Saved: ' + cfg['TRAINING']['CHECKPOINT'] + SAVE_DIR + '_' + str(epoch) + '_' + str(steps))
 
         if os.path.exists(cfg['TRAINING']['CHECKPOINT']+'/stop.txt'):
             # break without using CTRL+C
@@ -114,6 +114,6 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
             import pdb; pdb.set_trace()
 
     # saving the last model by first removing previous models (for saving memory)
-    save_model(args, cfg, model, cfg['TRAINING']['CHECKPOINT']+ FILENAME_POSTFIX, epoch, steps)
-    print('Saved Last Model As: ' + cfg['TRAINING']['CHECKPOINT'] + FILENAME_POSTFIX + '_' + str(epoch) + '_' + str(steps))
+    save_model(args, cfg, model, cfg['TRAINING']['CHECKPOINT']+ SAVE_DIR, epoch, steps)
+    print('Saved Last Model As: ' + cfg['TRAINING']['CHECKPOINT'] + SAVE_DIR + '_' + str(epoch) + '_' + str(steps))
     
