@@ -21,8 +21,12 @@ from torch.cuda import amp
 
 from Model.utils import adjust_learning_rate_halfcosine, save_model
 
+
+from torch.utils.data import DataLoader
+
+
 def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scaler, logger = logger, 
-                 SAVE_DIR = SAVE_DIR,pretraining_dataloader = pretraining_dataloader,
+                 SAVE_DIR = SAVE_DIR,validation_dataloader = validation_dataloader, pretraining_dataloader = pretraining_dataloader,
                 pretraining_dataset = pretraining_dataset):
         """
     Do MAE pre-training
@@ -30,30 +34,28 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
     """
     # Read log period
     log_period = cfg['TRAINING']['LOGGING_PERIOD']
+    batch_size      = cfg['DATALOADER']['BATCH_SIZE']
+    iter_per_epoch  = len(pretraining_dataset) / batch_size
+    epochs          = cfg['TRAINING']['EPOCHS']
+    mask_ratio      = cfg['TRAINING']['MASK_RATIO']
+
     logger.info('Started training')
 
-    # Read evalutation period
-
-    # Read batch size
-    batch_size = cfg['DATALOADER']['BATCH_SIZE']
-
-    # Calculate iter per epoch
-    iter_per_epoch = pretraining_dataset.__len__()/batch_size
-
-    # Read epochs
-    epochs = cfg['TRAINING']['EPOCHS']
 
     # Train the Model
     batch_time, net_time = [], []
 
     iter_start = args.iter_start
     steps = args.iter_start
+    best_val_loss = float('inf')
+    best_epoch    = -1
     
     # performance metrics helpers
     average_loss = 0
 
     for epoch in range(int(iter_start/iter_per_epoch), epochs):
         model.train()
+        average_train_loss = 0.
         end = time()
 
         for batch_data in pretraining_dataloader:
@@ -96,24 +98,75 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
             
             end = time()
         
-        print(('[%2d/%2d] %5d) [batch load % 2.3fs, net %1.2fs], LR %.6f, Loss: % 1.3f, N %3d' %(
-                epoch+1, epochs, steps, np.mean(batch_time), np.mean(net_time), lr, average_loss/iter_per_epoch, iter_per_epoch*batch_size)))
-        logger.info('[%2d/%2d] %5d) [batch load % 2.3fs, net %1.2fs], LR %.6f, Loss: % 1.3f, N %3d' %(
-                    epoch+1, epochs, steps, np.mean(batch_time), np.mean(net_time), lr, average_loss/iter_per_epoch, iter_per_epoch*batch_size))
-        average_loss = 0
-        # scheduler.step()
-        save_model(args, cfg, model, cfg['TRAINING']['CHECKPOINT'] + SAVE_DIR, epoch, steps)
-        print('Saved: ' + cfg['TRAINING']['CHECKPOINT'] + SAVE_DIR + '_' + str(epoch) + '_' + str(steps))
+        # ------------------------------------------------------------------ #
+        #  Validation                                                          #
+        # ------------------------------------------------------------------ #
+        model.eval()
+        average_val_loss = 0.
+        n_val_batches    = 0
 
-        if os.path.exists(cfg['TRAINING']['CHECKPOINT']+'/stop.txt'):
-            # break without using CTRL+C
-            # just create stop.txt file in cfg['TRAINING']['CHECKPOINT']
+        with torch.no_grad():
+            for batch_data in pretraining_val_dataloader:
+                images = batch_data["image"].cuda(non_blocking=True)
+                #with amp.autocast(enabled=True):
+                loss, _, _ = model(images, mask_ratio=mask_ratio)
+                average_val_loss += float(loss.item())
+                n_val_batches    += 1
+
+        average_val_loss /= n_val_batches
+
+        # ------------------------------------------------------------------ #
+        #  Logging                                                             #
+        # ------------------------------------------------------------------ #
+        logger.info(
+            '[%2d/%2d] %5d) [batch load %2.3fs, net %1.2fs], '
+            'LR %.6f, Train Loss: %1.3f, Val Loss: %1.3f'
+            % (epoch + 1, epochs, steps,
+               np.mean(batch_time), np.mean(net_time),
+               lr, average_train_loss, average_val_loss)
+        )
+
+        wandb.log({
+            "pretrain/train_loss_epoch": average_train_loss,
+            "pretrain/val_loss_epoch":   average_val_loss,
+            "pretrain/lr":               lr,
+            "epoch":                     epoch,
+        })
+
+        # ------------------------------------------------------------------ #
+        #  Checkpointing                                                       #
+        # ------------------------------------------------------------------ #
+        # always save latest
+        # save_model(args, cfg, model,
+        #            os.path.join(SAVE_DIR, 'checkpoint_latest'),
+        #            epoch, steps)
+
+        # save best based on val loss
+        if average_val_loss < best_val_loss:
+            best_val_loss = average_val_loss
+            best_epoch    = epoch
+            save_model(args, cfg, model,
+                       os.path.join(SAVE_DIR, 'checkpoint_best'),
+                       epoch, steps)
+            logger.info(
+                f'New best val loss: {best_val_loss:.4f} at epoch {epoch + 1}'
+            )
+
+        logger.info(
+            f'Best so far: epoch {best_epoch + 1}, val loss {best_val_loss:.4f}'
+        )
+
+        # early stopping hooks (unchanged from original)
+        if os.path.exists(os.path.join(cfg['TRAINING']['CHECKPOINT'], 'stop.txt')):
+            logger.info('Stop file detected - ending training early.')
             break
-        
-        if os.path.exists(cfg['TRAINING']['CHECKPOINT']+'/pdb.txt'):
+
+        if os.path.exists(os.path.join(cfg['TRAINING']['CHECKPOINT'], 'pdb.txt')):
             import pdb; pdb.set_trace()
 
-    # saving the last model by first removing previous models (for saving memory)
-    save_model(args, cfg, model, cfg['TRAINING']['CHECKPOINT']+ SAVE_DIR, epoch, steps)
-    print('Saved Last Model As: ' + cfg['TRAINING']['CHECKPOINT'] + SAVE_DIR + '_' + str(epoch) + '_' + str(steps))
-    
+    logger.info(
+        f'Training finished. Best checkpoint: epoch {best_epoch + 1}, '
+        f'val loss {best_val_loss:.4f}'
+    )
+        
+        

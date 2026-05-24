@@ -67,9 +67,9 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the fMRI data.")
     parser.add_argument("--save_dir", type=str, required=True, help="Path to the directory where the pretrained model will be saved.")
     parser.add_argument("--config_file", type=str, required=True, help="Path to the configuration file for training.")
+    parser.add_argument("--mask_ratio", type=float, required=True, help="Ratio of the input to mask during pretraining.")
+    parser.add_argument("--plane", type=str, required=True, choices=['sagittal', 'coronal', 'axial', 'all'], help="Input plane for the model.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility.")
-    parser.add_argument("--mask_ratio", type=float, default=0.75, help="Ratio of the input to mask during pretraining.")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Path to the configuration file.")
     parser.add_argument('--iter_start', default=0, type=int, help='Starting iteration count of training')
     args = parser.parse_args()
     
@@ -104,8 +104,11 @@ if __name__ == "__main__":
     model.cuda()
     
     # Build Dataset and Dataloader
-    pretraining_dataset, pretraining_dataloader = build_pretraining_dataloader(cfg, args)
+    Datamodule = IXIOASISDataModule(plane=args.plane, batch_size=cfg['DATALOADER']['BATCH_SIZE'], num_workers=cfg['DATALOADER']['NUM_WORKERS'])
     
+    dataset_train, pretraining_dataloader = Datamodule.train_dataloader()
+    dataset_val, pretraining_val_dataloader = Datamodule.val_dataloader()
+    print("DataModule and Dataloaders created successfully.")
     # Build the optimizer
     
     optimizer = make_optimizer(cfg,args, model)
@@ -121,5 +124,6 @@ if __name__ == "__main__":
                 scaler = scaler,
                 logger = logger,
                 SAVE_DIR = SAVE_DIR,
+                validation_dataloader = pretraining_val_dataloader,
                 pretraining_dataloader = pretraining_dataloader,
-                pretraining_dataset = pretraining_dataset)
+                pretraining_dataset = dataset_train,)
