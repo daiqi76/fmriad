@@ -1,6 +1,4 @@
 
-
-from __future__ import print_function, division
 import numpy as np
 import matplotlib.pyplot as plt
 import nibabel as nib
@@ -26,21 +24,19 @@ from torch.utils.data import DataLoader
 
 
 def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scaler, logger = logger, 
-                 SAVE_DIR = SAVE_DIR,validation_dataloader = validation_dataloader, pretraining_dataloader = pretraining_dataloader,
+                checkpoint_path=checkpoint_path,validation_dataloader = validation_dataloader, pretraining_dataloader = pretraining_dataloader,
                 pretraining_dataset = pretraining_dataset):
-        """
-    Do MAE pre-training
 
-    """
+    "Do Mae pretraining"
+
     # Read log period
     log_period = cfg['TRAINING']['LOGGING_PERIOD']
-    batch_size      = cfg['DATALOADER']['BATCH_SIZE']
-    iter_per_epoch  = len(pretraining_dataset) / batch_size
-    epochs          = cfg['TRAINING']['EPOCHS']
-    mask_ratio      = cfg['TRAINING']['MASK_RATIO']
-
+    batch_size = cfg['DATALOADER']['BATCH_SIZE']
+    iter_per_epoch = len(pretraining_dataset) / batch_size
+    epochs = cfg['TRAINING']['EPOCHS']
+    mask_ratio = cfg['TRAINING']['MASK_RATIO']
+    
     logger.info('Started training')
-
 
     # Train the Model
     batch_time, net_time = [], []
@@ -145,8 +141,7 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
         if average_val_loss < best_val_loss:
             best_val_loss = average_val_loss
             best_epoch    = epoch
-            save_model(args, cfg, model,
-                       os.path.join(SAVE_DIR, 'checkpoint_best'),
+            save_model(args, cfg, model,checkpoint_path,
                        epoch, steps)
             logger.info(
                 f'New best val loss: {best_val_loss:.4f} at epoch {epoch + 1}'
@@ -156,7 +151,7 @@ def pretrain_mae(cfg = cfg, model = model, optimizer = optimizer, scaler = scale
             f'Best so far: epoch {best_epoch + 1}, val loss {best_val_loss:.4f}'
         )
 
-        # early stopping hooks (unchanged from original)
+        # early stopping hooks 
         if os.path.exists(os.path.join(cfg['TRAINING']['CHECKPOINT'], 'stop.txt')):
             logger.info('Stop file detected - ending training early.')
             break

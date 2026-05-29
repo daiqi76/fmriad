@@ -1,5 +1,23 @@
 from maskedautoencoder import MaskedAutoencoderViT
 import torch.optim as optim
+from ViT import Vision_Transformer2D
+import torch.nn as nn
+
+def build_ViT(cfg, args):
+    # Build the ViT model
+    model = Vision_Transformer2D(
+        img_size=cfg['MODEL']['img_size'],
+        patch_size=cfg['MODEL']['patch_size'],
+        in_chans=cfg['MODEL']['in_chans'],
+        num_classes=2,
+        embed_dim=cfg['MODEL']['embed_dim'],
+        depth=cfg['MODEL']['depth'],
+        num_heads=cfg['MODEL']['n_heads'],
+        mlp_ratio=cfg['MODEL']['mlp_ratio'],
+        qkv_bias=cfg['MODEL']['qkv_bias'],
+        drop_path_rate=cfg['MODEL']['drop_path_rate']
+    )
+    return model
 
 def make_optimizer(cfg,args, model):
     """

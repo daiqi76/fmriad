@@ -34,7 +34,6 @@ def wandb_setup(cfg, args, SAVE_DIR):
         
         # track hyperparameters and run metadata
         config={
-        "config_file": args.config_file,
         "lr": cfg['SOLVER']['lr'],
         "dir": SAVE_DIR+'/'+'./wandb/',
         "mask ratio": args.mask_ratio,
@@ -53,7 +52,7 @@ def setup_logger(SAVE_DIR, timestamp_current):
                             level=logging.DEBUG, 
                             force=True)
     else:
-        logging.basicConfig(filename=SAVE_DIR + '/logs/' + SAVE_DIR + '_' + timestamp_current + '.log', 
+        logging.basicConfig(filename=SAVE_DIR + '/logs/' + timestamp_current + '.log', 
                         format='%(asctime)s %(message)s',
                         filemode='w',
                         level=logging.DEBUG, 
@@ -64,23 +63,29 @@ def setup_logger(SAVE_DIR, timestamp_current):
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Pretrain a Masked Autoencoder (MAE) on fMRI data.")
-    parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the fMRI data.")
-    parser.add_argument("--save_dir", type=str, required=True, help="Path to the directory where the pretrained model will be saved.")
-    parser.add_argument("--config_file", type=str, required=True, help="Path to the configuration file for training.")
+    #parser.add_argument("--config_file", type=str, required=True, help="Path to the configuration file for training.")
     parser.add_argument("--mask_ratio", type=float, required=True, help="Ratio of the input to mask during pretraining.")
     parser.add_argument("--plane", type=str, required=True, choices=['sagittal', 'coronal', 'axial', 'all'], help="Input plane for the model.")
+    parser.add_argument("--data_dir", type=str, default="Data/", help="Path to the directory containing the fMRI data.")
+    parser.add_argument("--save_dir", type=str, default="Results/Pretraining/", help="Path to the directory where the pretrained model will be saved.")  
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility.")
     parser.add_argument('--iter_start', default=0, type=int, help='Starting iteration count of training')
     args = parser.parse_args()
     
-    config_file = open(args.config_file, 'rb')
-    cfg = yaml.load(config_file, Loader=yaml.FullLoader)
     
     set_seed(args.seed)
     
     base_directory = "/home/hpc/iwi5/iwi5360h/FMRIAD/mae_pretraining/"
+    config_file = open(base_directory + "config.yml", 'rb')
+    cfg = yaml.load(config_file, Loader=yaml.FullLoader)
+    
+    
     SAVE_DIR = base_directory + args.save_dir + '_' +  '_seed_' + str(args.seed)
-
+    DATA_DIR = base_directory + args.data_dir
+    checkpoint_path = SAVE_DIR + '/' + 'Checkpoints/'
+    os.makedirs(checkpoint_path, exist_ok=True)
+    os.makedirs(SAVE_DIR, exist_ok=True)
+    
     # Logging
     
     timestamp_current = datetime.now()
@@ -104,7 +109,7 @@ if __name__ == "__main__":
     model.cuda()
     
     # Build Dataset and Dataloader
-    Datamodule = IXIOASISDataModule(plane=args.plane, batch_size=cfg['DATALOADER']['BATCH_SIZE'], num_workers=cfg['DATALOADER']['NUM_WORKERS'])
+    Datamodule = IXIOASISDataModule(plane=args.plane, path=DATA_DIR, batch_size=cfg['DATALOADER']['BATCH_SIZE'], num_workers=cfg['DATALOADER']['NUM_WORKERS'])
     
     dataset_train, pretraining_dataloader = Datamodule.train_dataloader()
     dataset_val, pretraining_val_dataloader = Datamodule.val_dataloader()
@@ -123,7 +128,7 @@ if __name__ == "__main__":
                 optimizer = optimizer,
                 scaler = scaler,
                 logger = logger,
-                SAVE_DIR = SAVE_DIR,
+                checkpoint_path = checkpoint_path,
                 validation_dataloader = pretraining_val_dataloader,
                 pretraining_dataloader = pretraining_dataloader,
                 pretraining_dataset = dataset_train,)

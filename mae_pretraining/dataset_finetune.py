@@ -16,11 +16,11 @@ from torch.utils.data import DataLoader, Dataset
 # Paths
 # ---------------------------------------------------------------------------
 
-IMAGE_ROOT = Path("F:/daiqi_fmriad/images/without_pretrain")
+IMAGE_ROOT = Path("/home/hpc/iwi5/iwi5360h/fmriAD/mae_pretraining/Data/finetuning")
 
 # ---------------------------------------------------------------------------
 # ImageNet normalisation constants
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------------
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]

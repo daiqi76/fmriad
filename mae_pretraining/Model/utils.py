@@ -9,6 +9,31 @@ from sklearn.preprocessing import MinMaxScaler
 
 import timm
 
+
+class EarlyStopping:
+
+def load_pretrained_checkpoint(model, checkpoint_path):
+    files = [f for f in os.listdir(checkpoint_path) if filename in f]
+    if len(files)>0:
+        files.sort()
+        ckp = files[-1]
+        model.load_state_dict(torch.load(checkpoint_path+ckp)['net'])
+        print(ckp, ' found and loaded.')
+    
+    return model
+
+def make_scheduler():
+    pass
+
+def adjust_alpha():
+    pass
+
+def set_requires_grad():
+    pass
+
+def loop_iterable(iterable):
+    pass
+
 def save_model(args, cfg, model, filename, epoch, steps):
     flist = glob.glob(filename+ '*')
     for f in flist:
